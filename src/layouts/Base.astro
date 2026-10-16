@@ -26,6 +26,7 @@ const nav = [
 		<link rel="alternate" type="application/rss+xml" title="Billy" href="/rss.xml" />
 		<link rel="canonical" href={new URL(path, Astro.site)} />
 		<meta name="description" content={description} />
+		<meta name="theme-color" content="#f4f3ef" />
 		<title>{pageTitle}</title>
 	</head>
 	<body>
@@ -48,9 +49,9 @@ const nav = [
 <style is:global>
 	/* ponytail: structural defaults only; the real type, color and spacing system comes in the design pass */
 	:root {
-		--bg: #fff;
-		--fg: #111;
-		--muted: #6b6b6b;
+		--bg: #f4f3ef; /* warm paper: easier on the eyes than pure white */
+		--fg: #1c1b19; /* 15.5:1 on --bg */
+		--muted: #6b6a66; /* 4.9:1 on --bg, passes AA for small text */
 		--measure: 40rem;
 		color-scheme: light;
 		font-family: ui-sans-serif, system-ui, sans-serif;
