@@ -1,0 +1,38 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import { getArticles, getFilms, formatDate, stars } from '../lib/content';
+
+const articles = (await getArticles()).slice(0, 3);
+const films = (await getFilms()).slice(0, 3);
+---
+
+<Base overlayHeader>
+	<Hero />
+
+	<div class="prose">
+		<section>
+			<h2>Writing</h2>
+			<ul>
+				{articles.map((a) => (
+					<li>
+						<a href={`/articles/${a.id}/`}>{a.data.title}</a>
+						<span class="meta"> · {formatDate(a.data.date)}</span>
+					</li>
+				))}
+			</ul>
+		</section>
+
+		<section>
+			<h2>Recently watched</h2>
+			<ul>
+				{films.map((f) => (
+					<li>
+						<a href={`/films/${f.id}/`}>{f.data.title}</a>
+						<span class="meta"> ({f.data.year}) · {stars(f.data.rating)}</span>
+					</li>
+				))}
+			</ul>
+		</section>
+	</div>
+</Base>

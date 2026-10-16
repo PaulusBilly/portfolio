@@ -1,0 +1,47 @@
+<section class="hero">
+	<canvas tabindex="0" aria-label="Gordon Freeman. Click, then move with W A S D, Space to jump, Shift to walk, C to crouch."></canvas>
+	<p class="credit meta">
+		Model: <a href="https://sketchfab.com/3d-models/half-life-gordon-freeman-8da44acec0134c93b135dac4c0d2a749">“Half Life: Gordon Freeman”</a> by <a href="https://sketchfab.com/Gordofreeman">Gordofreeman</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>. Half-Life © Valve.
+	</p>
+</section>
+
+<style>
+	.hero {
+		position: relative;
+		height: 100svh; /* svh, not dvh: the canvas shouldn't resize as mobile toolbars slide */
+		margin-inline: -1.5rem;
+	}
+	canvas {
+		display: block;
+		width: 100%;
+		height: 100%;
+		outline: none;
+		cursor: pointer;
+	}
+	/* Mouse clicks get no ring; keyboard users tabbing in still see where focus went. */
+	canvas:focus-visible {
+		outline: 1px dashed var(--muted);
+		outline-offset: -1px;
+	}
+	.credit {
+		position: absolute;
+		margin: 0;
+		font-size: 0.75rem;
+	}
+	.credit {
+		right: 1.5rem;
+		bottom: 1rem;
+	}
+</style>
+
+<script>
+	// Loads three.js and the model only once the hero scrolls into view.
+	const canvas = document.querySelector<HTMLCanvasElement>('.hero canvas')!;
+	const io = new IntersectionObserver(async ([entry]) => {
+		if (!entry.isIntersecting) return;
+		io.disconnect();
+		const { mountScene } = await import('../scripts/scene');
+		mountScene(canvas);
+	});
+	io.observe(canvas);
+</script>
