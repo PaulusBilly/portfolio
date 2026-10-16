@@ -5,10 +5,14 @@ import { Layer } from './animation';
 // Everything is in GoldSrc units: the player is 72 tall, runs at 320 u/s, falls at 800 u/s².
 // Built from the player .mdl by scripts/mdl2glb.py.
 const MODEL_URL = '/models/gordon-sci.glb';
-const ISO_PITCH = Math.atan(1 / Math.SQRT2); // true isometric, ≈35.26°
-const SCROLLED_PITCH = THREE.MathUtils.degToRad(10); // the camera sinks to this as the hero scrolls away
+// Scroll feel follows shujaat.info: a low view that sinks to 2° as the hero scrolls away. He starts at 16°;
+// 26° keeps walking away from the camera from looking slow (sin 26° ≈ 0.44 of a step shows on screen).
+const PITCH = THREE.MathUtils.degToRad(26);
+const SCROLLED_PITCH = THREE.MathUtils.degToRad(2);
 const SCROLL_SPAN = 0.85; // fraction of the hero's height the descent takes
-const VIEW_HEIGHT = 360; // world units visible top to bottom
+const PITCH_DAMPING = 10; // how fast the camera chases the scroll target (THREE.MathUtils.damp lambda)
+const RENDER_ROWS = 720; // drawing-buffer height, whatever the screen
+const VIEW_HEIGHT = 290; // world units visible top to bottom
 const EDGE = 24; // keep the player this far inside the canvas edges
 const TOP_INSET = 64; // the site header floats over the top of the canvas
 
@@ -49,10 +53,13 @@ const KEYS: Record<string, string> = {
 	Space: 'jump',
 };
 
-export async function mountScene(canvas: HTMLCanvasElement) {
+// `canvas` fills the hero; `stage` is the hero box over it, which takes the input and focus and whose
+// scroll drives the camera.
+export async function mountScene(canvas: HTMLCanvasElement, stage: HTMLElement) {
 	// alpha: true so the page background shows through and always matches.
-	const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
-	renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+	// Low-res and aliased on purpose, like shujaat.info: a fixed number of rows scaled up with
+	// image-rendering: pixelated reads as a game render, and costs a fraction of a native-res canvas.
+	const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: false });
 	renderer.shadowMap.enabled = true;
 	renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -67,18 +74,30 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 		);
 		camera.lookAt(0, 0, 0);
 	};
-	setPitch(ISO_PITCH);
+	setPitch(PITCH);
 
 	// Lower the camera as the hero scrolls away, then raise it again on the way back. Ease out so the
-	// first small scroll already reads. Reduced-motion users keep the isometric view.
+	// first small scroll already reads, and damp toward it so the camera glides rather than snaps to
+	// each scroll step. Reduced-motion users keep the starting view.
 	const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
-	let lastPitch = ISO_PITCH;
-	const followScroll = () => {
-		const { top, height } = canvas.getBoundingClientRect();
-		const progress = reducedMotion.matches ? 0 : THREE.MathUtils.clamp(-top / (height * SCROLL_SPAN), 0, 1);
-		const pitch = THREE.MathUtils.lerp(ISO_PITCH, SCROLLED_PITCH, 1 - (1 - progress) ** 2);
-		if (pitch !== lastPitch) setPitch((lastPitch = pitch));
+	let pitch = PITCH;
+	const followScroll = (dt: number) => {
+		const { top, height } = stage.getBoundingClientRect();
+		const finishAt = scrollY + top + height * SCROLL_SPAN;
+		const progress = reducedMotion.matches ? 0 : THREE.MathUtils.clamp(scrollY / Math.max(1, finishAt), 0, 1);
+		const target = THREE.MathUtils.lerp(PITCH, SCROLLED_PITCH, 1 - (1 - progress) ** 2);
+		if (Math.abs(target - pitch) < 1e-5) return;
+		pitch = THREE.MathUtils.damp(pitch, target, PITCH_DAMPING, dt);
+		setPitch(pitch);
+		document.body.style.setProperty('--land-lift', `${landLift(pitch)}px`);
 	};
+
+	// The page background is the top of the land, and the content block below the hero is its cut face
+	// (see .underland on the home page). The land's near edge is placed so that at the starting pitch it
+	// projects exactly onto the hero's bottom edge, where that block begins. Lowering the camera raises
+	// the edge by this many pixels; the block is lifted by the same amount, so the face, its text and
+	// Gordon's ground stay one surface. Being DOM, the face scrolls natively with the text.
+	const landLift = (p: number) => (VIEW_HEIGHT / 2) * (Math.sin(p) / Math.sin(PITCH) - 1) * (canvas.clientHeight / VIEW_HEIGHT);
 
 	scene.add(new THREE.HemisphereLight(0xffffff, 0xb0b0b0, 3));
 	const sun = new THREE.DirectionalLight(0xffffff, 1.4);
@@ -132,29 +151,29 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 	const legs = new Layer(mixer, clips, new Set(bones.slice(0, spineIndex).map((b) => b.name)));
 	const torso = new Layer(mixer, clips, new Set(bones.slice(spineIndex).map((b) => b.name)));
 
-	// Input, only while the canvas has focus so the page keeps its keys otherwise.
+	// Input, only while the stage has focus so the page keeps its keys otherwise.
 	const held = new Set<string>();
 	let jumpBuffer = 0;
-	canvas.addEventListener('keydown', (e) => {
+	stage.addEventListener('keydown', (e) => {
 		const action = KEYS[e.code];
 		if (!action) return;
 		e.preventDefault();
 		if (action === 'jump' && !e.repeat) jumpBuffer = JUMP_BUFFER; // a fresh press per jump, like HL
 		held.add(action);
 	});
-	canvas.addEventListener('keyup', (e) => held.delete(KEYS[e.code]));
-	canvas.addEventListener('blur', () => held.clear());
+	stage.addEventListener('keyup', (e) => held.delete(KEYS[e.code]));
+	stage.addEventListener('blur', () => held.clear());
 	// Mouse 1 swings, held down it keeps swinging. Clicking in shouldn't draw the keyboard focus
 	// ring; tabbing in still does.
 	let attacking = false;
-	canvas.addEventListener('pointerdown', (e) => {
+	stage.addEventListener('pointerdown', (e) => {
 		e.preventDefault();
-		canvas.focus({ focusVisible: false } as FocusOptions);
+		stage.focus({ focusVisible: false } as FocusOptions);
 		if (e.button !== 0) return;
-		canvas.setPointerCapture(e.pointerId);
+		stage.setPointerCapture(e.pointerId);
 		attacking = true;
 	});
-	for (const type of ['pointerup', 'pointercancel', 'blur'] as const) canvas.addEventListener(type, () => (attacking = false));
+	for (const type of ['pointerup', 'pointercancel', 'blur'] as const) stage.addEventListener(type, () => (attacking = false));
 	let nextSwing = 0;
 	let swing: string[] = [];
 	let swingLeft = 0;
@@ -281,30 +300,36 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 		const halfH = VIEW_HEIGHT / 2;
 		Object.assign(camera, { left: -halfW, right: halfW, top: halfH, bottom: -halfH });
 		camera.updateProjectionMatrix();
+		document.body.style.setProperty('--land-lift', `${landLift(pitch)}px`);
+		renderer.setPixelRatio(Math.min(devicePixelRatio, RENDER_ROWS / h));
 		renderer.setSize(w, h, false);
 
 		// A ground step "away" moves sin(pitch) up the screen; leave headroom for the 72-unit body.
-		// ponytail: walls use the isometric pitch only; a lower scrolled camera shows more floor, so they stay on screen
-		const sin = Math.sin(ISO_PITCH);
+		// ponytail: walls use the starting pitch only; a lower scrolled camera shows more floor, so they stay on screen
+		const sin = Math.sin(PITCH);
 		const margin = EDGE * (VIEW_HEIGHT / h);
 		bounds.right = halfW - margin * 2;
 		bounds.left = -bounds.right;
-		bounds.away = (halfH - 72 * Math.cos(ISO_PITCH) - TOP_INSET * (VIEW_HEIGHT / h)) / sin;
+		bounds.away = (halfH - 72 * Math.cos(PITCH) - TOP_INSET * (VIEW_HEIGHT / h)) / sin;
 		bounds.toward = -(halfH - margin) / sin;
 	};
 	new ResizeObserver(resize).observe(canvas);
 	resize();
 
-	// Only simulate and render while the hero is on screen.
+	// The camera (and the face's lift) follows scroll every display frame, so the edge moves as smoothly
+	// as the page. Simulating and drawing are capped at 60 fps and only run while the hero is on screen.
 	let visible = true;
-	new IntersectionObserver(([e]) => (visible = e.isIntersecting)).observe(canvas);
+	new IntersectionObserver(([e]) => (visible = e.isIntersecting)).observe(stage);
 	const timer = new THREE.Timer();
+	let lastTick = NaN;
+	let lastFrame = -Infinity;
 	renderer.setAnimationLoop((time) => {
+		followScroll(Number.isNaN(lastTick) ? 0 : Math.min((time - lastTick) / 1000, 0.05));
+		lastTick = time;
+		if (!visible || time - lastFrame < 1000 / 60 - 2) return;
+		lastFrame = time;
 		timer.update(time);
-		const dt = Math.min(timer.getDelta(), 0.05);
-		if (!visible) return;
-		followScroll();
-		step(dt);
+		step(Math.min(timer.getDelta(), 0.05));
 		renderer.render(scene, camera);
 	});
 }

@@ -5,34 +5,113 @@ import { getArticles, getFilms, formatDate, stars } from '../lib/content';
 
 const articles = (await getArticles()).slice(0, 3);
 const films = (await getFilms()).slice(0, 3);
+const work = [
+	{ title: 'Project one', year: '2026', summary: 'Placeholder. One line on what it is and what you did.' },
+	{ title: 'Project two', year: '2025', summary: 'Placeholder. One line on what it is and what you did.' },
+	{ title: 'Project three', year: '2025', summary: 'Placeholder. One line on what it is and what you did.' },
+	{ title: 'Project four', year: '2024', summary: 'Placeholder. One line on what it is and what you did.' },
+	{ title: 'Project five', year: '2023', summary: 'Placeholder. One line on what it is and what you did.' },
+];
 ---
 
 <Base overlayHeader>
 	<Hero />
 
-	<div class="prose">
-		<section>
-			<h2>Writing</h2>
-			<ul>
-				{articles.map((a) => (
-					<li>
-						<a href={`/articles/${a.id}/`}>{a.data.title}</a>
-						<span class="meta"> · {formatDate(a.data.date)}</span>
-					</li>
-				))}
-			</ul>
-		</section>
+	<!-- The land's cut face. scene.ts lifts it with the camera (--land-lift) so its top edge stays on the
+	     land's near edge as the view tilts. -->
+	<div class="underland">
+		<div class="prose">
+			<section>
+				<h2>Selected work</h2>
+				<!-- ponytail: placeholder entries until the real case studies exist -->
+				<ul class="work">
+					{work.map((w) => (
+						<li>
+							<span class="work-title">{w.title}</span>
+							<span class="meta">{w.year}</span>
+							<p class="meta">{w.summary}</p>
+						</li>
+					))}
+				</ul>
+			</section>
 
-		<section>
-			<h2>Recently watched</h2>
-			<ul>
-				{films.map((f) => (
-					<li>
-						<a href={`/films/${f.id}/`}>{f.data.title}</a>
-						<span class="meta"> ({f.data.year}) · {stars(f.data.rating)}</span>
-					</li>
-				))}
-			</ul>
-		</section>
+			<section>
+				<h2>Writing</h2>
+				<ul>
+					{articles.map((a) => (
+						<li>
+							<a href={`/articles/${a.id}/`}>{a.data.title}</a>
+							<span class="meta"> · {formatDate(a.data.date)}</span>
+						</li>
+					))}
+				</ul>
+			</section>
+
+			<section>
+				<h2>Recently watched</h2>
+				<ul>
+					{films.map((f) => (
+						<li>
+							<a href={`/films/${f.id}/`}>{f.data.title}</a>
+							<span class="meta"> ({f.data.year}) · {stars(f.data.rating)}</span>
+						</li>
+					))}
+				</ul>
+			</section>
+		</div>
+
+		<footer class="meta">
+			Gordon Freeman Scientist player model by DerickFabro, recoloured in the original scientist colours. Half-Life © Valve.
+		</footer>
 	</div>
 </Base>
+
+<style>
+	:global(body) {
+		--muted: #4f4e49; /* 4.7:1 on the deepest underside grey */
+	}
+	:global(main) {
+		padding-bottom: 0; /* the face runs to the bottom of the page */
+	}
+	/* Below the hero the page itself is the deepest earth, so whatever the lifted face uncovers at the
+	   bottom of the page continues it seamlessly. The hero area stays paper, the top of the land. */
+	:global(html:root) {
+		background: linear-gradient(var(--bg) 100svh, #c5c2b9 0);
+	}
+	.underland {
+		position: relative;
+		margin-inline: -1.5rem;
+		padding: 5rem 1.5rem 0;
+		transform: translateY(var(--land-lift, 0px));
+		will-change: transform;
+		/* Top down: the lit cut edge, the overhang's shadow, then earth darkening with depth. */
+		background:
+			linear-gradient(#ecebe4, #ecebe4) top / 100% 2px no-repeat,
+			linear-gradient(rgb(0 0 0 / 0.07), rgb(0 0 0 / 0.025) 1.5rem, transparent 5rem) top / 100% 5rem no-repeat,
+			linear-gradient(#d5d3cb, #c5c2b9);
+	}
+	footer {
+		padding-block: 4rem 1.5rem;
+		font-size: 0.75rem;
+	}
+	.work {
+		list-style: none;
+		padding: 0;
+	}
+	.work li {
+		display: grid;
+		grid-template-columns: 1fr auto;
+		column-gap: 1rem;
+		padding-block: 1rem;
+	}
+	.work li + li {
+		border-top: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+	}
+	.work p {
+		grid-column: 1 / -1;
+		margin: 0.25rem 0 0;
+	}
+	.work-title {
+		font-weight: 600;
+	}
+</style>

@@ -1,8 +1,5 @@
-<section class="hero">
-	<canvas tabindex="0" aria-label="Gordon Freeman. Click, then move with W A S D, Space to jump, Shift to walk, C to crouch. Click again to swing."></canvas>
-	<p class="credit meta">
-		Gordon Freeman Scientist player model by DerickFabro, recoloured in the original scientist colours. Half-Life © Valve.
-	</p>
+<section class="hero" tabindex="0" aria-label="Gordon Freeman. Click, then move with W A S D, Space to jump, Shift to walk, C to crouch. Click again to swing.">
+	<canvas aria-hidden="true"></canvas>
 </section>
 
 <style>
@@ -10,38 +7,33 @@
 		position: relative;
 		height: 100svh; /* svh, not dvh: the canvas shouldn't resize as mobile toolbars slide */
 		margin-inline: -1.5rem;
-	}
-	canvas {
-		display: block;
-		width: 100%;
-		height: 100%;
 		outline: none;
 		cursor: pointer;
 	}
+	canvas {
+		position: absolute;
+		inset: 0;
+		display: block;
+		width: 100%;
+		height: 100%;
+		pointer-events: none;
+		image-rendering: pixelated; /* the scene renders at 720 rows; scale it up hard-edged */
+	}
 	/* Mouse clicks get no ring; keyboard users tabbing in still see where focus went. */
-	canvas:focus-visible {
+	.hero:focus-visible {
 		outline: 1px dashed var(--muted);
 		outline-offset: -1px;
-	}
-	.credit {
-		position: absolute;
-		margin: 0;
-		font-size: 0.75rem;
-	}
-	.credit {
-		right: 1.5rem;
-		bottom: 1rem;
 	}
 </style>
 
 <script>
 	// Loads three.js and the model only once the hero scrolls into view.
-	const canvas = document.querySelector<HTMLCanvasElement>('.hero canvas')!;
+	const stage = document.querySelector<HTMLElement>('.hero')!;
 	const io = new IntersectionObserver(async ([entry]) => {
 		if (!entry.isIntersecting) return;
 		io.disconnect();
 		const { mountScene } = await import('../scripts/scene');
-		mountScene(canvas);
+		mountScene(stage.querySelector('canvas')!, stage);
 	});
-	io.observe(canvas);
+	io.observe(stage);
 </script>
