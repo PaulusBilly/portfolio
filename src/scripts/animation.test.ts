@@ -1,27 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { stripRootMotion, Layer } from './animation.ts';
-
-test('stripRootMotion removes the forward drift, keeps the bob, and reports the stride', () => {
-	// Like the decompiled walk: root slides 56 units down local Y over the cycle, bobbing on Z.
-	const times = [0, 0.25, 0.5, 0.75, 1];
-	const values = times.flatMap((t) => [0.24, -56 * t, 2.8 + Math.sin(t * Math.PI * 2)]);
-	const clip = new THREE.AnimationClip('walk', 1, [new THREE.VectorKeyframeTrack('Bip01_01.position', times, values)]);
-
-	assert.equal(Math.round(stripRootMotion(clip)), 56);
-	const v = clip.tracks[0].values;
-	for (let i = 0; i < times.length; i++) assert.ok(Math.abs(v[i * 3 + 1]) < 1e-6, 'no forward travel left');
-	assert.ok(Math.abs(v[1 * 3 + 2] - 3.8) < 1e-6, 'bob untouched');
-});
-
-test('stripRootMotion leaves small settles alone', () => {
-	const clip = new THREE.AnimationClip('jump', 1, [
-		new THREE.VectorKeyframeTrack('Bip01_01.position', [0, 1], [0, 0, 2.8, 0, 0, 0]),
-	]);
-	assert.equal(stripRootMotion(clip), 0);
-	assert.equal(clip.tracks[0].values[5], 0);
-});
+import { Layer } from './animation.ts';
 
 test('Layer weights always sum to 1 and never jump, even when switching mid-fade', () => {
 	const root = new THREE.Object3D();

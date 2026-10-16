@@ -1,13 +1,14 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { Layer, stripRootMotion } from './animation';
+import { Layer } from './animation';
 
 // Everything is in GoldSrc units: the player is 72 tall, runs at 320 u/s, falls at 800 u/s².
-const MODEL_URL = '/models/gordon.glb';
+// Built from the player .mdl by scripts/mdl2glb.py.
+const MODEL_URL = '/models/gordon-sci.glb';
 const ISO_PITCH = Math.atan(1 / Math.SQRT2); // true isometric, ≈35.26°
 const SCROLLED_PITCH = THREE.MathUtils.degToRad(10); // the camera sinks to this as the hero scrolls away
 const SCROLL_SPAN = 0.85; // fraction of the hero's height the descent takes
-const VIEW_HEIGHT = 280; // world units visible top to bottom
+const VIEW_HEIGHT = 360; // world units visible top to bottom
 const EDGE = 24; // keep the player this far inside the canvas edges
 const TOP_INSET = 64; // the site header floats over the top of the canvas
 
@@ -26,8 +27,11 @@ const WALK_SCALE = 0.3; // cl_movespeedkey, the +speed (shift) key
 const DUCK_SCALE = 0.333;
 const RUN_THRESHOLD = 220; // player.cpp picks the run gait above this speed
 const AIRTIME = (2 * SV.jumpSpeed) / SV.gravity; // ≈0.67 s on flat ground
-const JUMP_CLIP_AIR = 0.75; // the jump clip's root is back at standing height here, then the landing squat
+const JUMP_CLIP_AIR = 0.585; // the jump clip's root is back at standing height here, then the landing squat
 const JUMP_BUFFER = 0.12; // seconds an early Space press waits for the ground
+const SWING_DELAY = 0.5; // crowbar.cpp: next attack 0.5 s after a miss (0.25 s after a hit; nothing to hit here)
+const SWING = ['ref_shoot_crowbar_blend01', 'ref_shoot_crowbar_blend02'];
+const CROUCH_SWING = ['crouch_shoot_crowbar_blend01', 'crouch_shoot_crowbar_blend02'];
 
 const TURN_RATE = 14; // how quickly the body swings round to the input direction, per second
 
@@ -97,9 +101,6 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 	model.traverse((obj) => {
 		if (!(obj as THREE.Mesh).isMesh) return;
 		const mesh = obj as THREE.SkinnedMesh;
-		// The model ships face and HEV-helmet head bodygroups; show the face.
-		const meshIndex = gltf.parser.associations.get(mesh)?.meshes;
-		if (meshIndex !== undefined && /\(Helmet\)/.test(gltf.parser.json.meshes[meshIndex].name)) mesh.visible = false;
 		mesh.castShadow = true;
 		mesh.frustumCulled = false; // skinned bounds don't follow the animation
 		skeleton ??= mesh.skeleton;
@@ -120,12 +121,8 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 		if (clip.duration === 0) clip.duration = 1 / 30; // single-frame poses
 		return [clip.name, clip];
 	}));
-	// Units one cycle of each gait clip covers: walk ≈ 56, run ≈ 190, crawl ≈ 100.
-	const strides = new Map<string, number>();
-	for (const [name, clip] of clips) {
-		const stride = stripRootMotion(clip);
-		if (stride) strides.set(name, stride);
-	}
+	// Units one cycle of each gait clip covers (the sequences' linear movement): walk 54, run 182, crawl 97.
+	const strides = new Map<string, number>(Object.entries(model.userData.strides ?? {}));
 	let gaitPhase = 0;
 
 	// The engine plays legs (gait) and torso (aim) as separate sequences:
@@ -147,11 +144,20 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 	});
 	canvas.addEventListener('keyup', (e) => held.delete(KEYS[e.code]));
 	canvas.addEventListener('blur', () => held.clear());
-	// Clicking in shouldn't draw the keyboard focus ring; tabbing in still does.
+	// Mouse 1 swings, held down it keeps swinging. Clicking in shouldn't draw the keyboard focus
+	// ring; tabbing in still does.
+	let attacking = false;
 	canvas.addEventListener('pointerdown', (e) => {
 		e.preventDefault();
 		canvas.focus({ focusVisible: false } as FocusOptions);
+		if (e.button !== 0) return;
+		canvas.setPointerCapture(e.pointerId);
+		attacking = true;
 	});
+	for (const type of ['pointerup', 'pointercancel', 'blur'] as const) canvas.addEventListener(type, () => (attacking = false));
+	let nextSwing = 0;
+	let swing: string[] = [];
+	let swingLeft = 0;
 
 	// Movement state, ported from pm_shared.c.
 	const pos = new THREE.Vector3();
@@ -233,6 +239,16 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 		model.position.set(pos.x, pos.y + (ducking ? 18 : 36), pos.z);
 		model.rotation.y = yaw;
 
+		// A swing takes over the torso until it finishes; the legs keep their gait underneath.
+		nextSwing -= dt;
+		swingLeft -= dt;
+		if (attacking && nextSwing <= 0) {
+			nextSwing = SWING_DELAY;
+			swing = ducking ? CROUCH_SWING : SWING;
+			for (const name of swing) torso.restart(name);
+			swingLeft = clips.get(swing[0])!.duration;
+		}
+
 		// Sequence choice mirrors CBasePlayer::SetAnimation.
 		const speed = Math.hypot(vel.x, vel.z);
 		let gait: string;
@@ -240,7 +256,8 @@ export async function mountScene(canvas: HTMLCanvasElement) {
 		else if (ducking) gait = speed > 1 ? 'crawl' : 'crouch_idle';
 		else gait = speed > RUN_THRESHOLD ? 'run' : speed > 1 ? 'walk' : 'deep_idle';
 		legs.set([gait]);
-		if (!onGround) torso.set(['jump']);
+		if (swingLeft > 0) torso.set(swing);
+		else if (!onGround) torso.set(['jump']);
 		else if (ducking) torso.set(['crouch_aim_crowbar_blend01', 'crouch_aim_crowbar_blend02']);
 		else torso.set(['ref_aim_crowbar_blend01', 'ref_aim_crowbar_blend02']); // two pitch extremes → level aim
 
