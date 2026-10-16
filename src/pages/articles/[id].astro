@@ -1,0 +1,21 @@
+---
+import { render } from 'astro:content';
+import Base from '../../layouts/Base.astro';
+import { getArticles, formatDate } from '../../lib/content';
+
+export async function getStaticPaths() {
+	const articles = await getArticles();
+	return articles.map((article) => ({ params: { id: article.id }, props: { article } }));
+}
+
+const { article } = Astro.props;
+const { Content } = await render(article);
+---
+
+<Base title={article.data.title} description={article.data.description}>
+	<article class="prose">
+		<h1>{article.data.title}</h1>
+		<p class="meta"><time datetime={article.data.date.toISOString()}>{formatDate(article.data.date)}</time></p>
+		<Content />
+	</article>
+</Base>

@@ -1,0 +1,77 @@
+---
+interface Props {
+	title?: string;
+	description?: string;
+	/** Float the header over the page's first section (the home hero) instead of stacking above it. */
+	overlayHeader?: boolean;
+}
+
+const { title, description = 'Billy — frontend and design engineer.', overlayHeader = false } = Astro.props;
+const pageTitle = title ? `${title} — Billy` : 'Billy';
+const path = Astro.url.pathname;
+// `match` lists the path prefixes a tab owns; Notebook also owns the article and film pages it lists.
+const nav = [
+	{ href: '/', label: 'Work', match: [] },
+	{ href: '/info/', label: 'Info', match: ['/info/'] },
+	{ href: '/notebook/', label: 'Notebook', match: ['/notebook/', '/articles/', '/films/'] },
+];
+---
+
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+		<link rel="icon" href="/favicon.ico" />
+		<link rel="alternate" type="application/rss+xml" title="Billy" href="/rss.xml" />
+		<link rel="canonical" href={new URL(path, Astro.site)} />
+		<meta name="description" content={description} />
+		<title>{pageTitle}</title>
+	</head>
+	<body>
+		<a class="skip" href="#main">Skip to content</a>
+		<header class:list={{ overlay: overlayHeader }}>
+			<a href="/" class="name">Billy</a>
+			<nav>
+				{nav.map(({ href, label, match }) => {
+					const current = href === '/' ? path === '/' : match.some((prefix) => path.startsWith(prefix));
+					return <a href={href} aria-current={current ? 'page' : undefined}>{label}</a>;
+				})}
+			</nav>
+		</header>
+		<main id="main">
+			<slot />
+		</main>
+	</body>
+</html>
+
+<style is:global>
+	/* ponytail: structural defaults only; the real type, color and spacing system comes in the design pass */
+	:root {
+		--bg: #fff;
+		--fg: #111;
+		--muted: #6b6b6b;
+		--measure: 40rem;
+		color-scheme: light;
+		font-family: ui-sans-serif, system-ui, sans-serif;
+		line-height: 1.5;
+		color: var(--fg);
+		background: var(--bg);
+	}
+	* { box-sizing: border-box; }
+	body { margin: 0; }
+	a { color: inherit; }
+	img { max-width: 100%; height: auto; }
+	.skip { position: absolute; left: -9999px; }
+	.skip:focus { left: 1rem; top: 1rem; }
+	header { display: flex; justify-content: space-between; padding: 1.25rem 1.5rem; }
+	/* Over the hero the bar itself lets clicks through to the canvas; only its links catch them. */
+	header.overlay { position: absolute; inset: 0 0 auto; z-index: 1; pointer-events: none; }
+	header.overlay a { pointer-events: auto; }
+	header a { text-decoration: none; }
+	nav { display: flex; gap: 1.25rem; }
+	nav a[aria-current='page'] { text-decoration: underline; text-underline-offset: 0.25em; }
+	main { padding: 0 1.5rem 4rem; }
+	.prose { max-width: var(--measure); margin-inline: auto; }
+	.meta { color: var(--muted); }
+</style>

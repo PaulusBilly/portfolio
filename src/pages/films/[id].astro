@@ -1,0 +1,27 @@
+---
+import { render } from 'astro:content';
+import { Image } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import { getFilms, formatDate, stars } from '../../lib/content';
+
+export async function getStaticPaths() {
+	const films = await getFilms();
+	return films.map((film) => ({ params: { id: film.id }, props: { film } }));
+}
+
+const { film } = Astro.props;
+const { Content } = await render(film);
+const { title, year, director, rating, watchedOn, poster } = film.data;
+---
+
+<Base title={`${title} (${year})`} description={`Review of ${title} (${year}), directed by ${director}.`}>
+	<article class="prose">
+		{poster && <Image src={poster} alt={`Poster for ${title}`} width={240} />}
+		<h1>{title} <span class="meta">({year})</span></h1>
+		<p class="meta">
+			{director} · <span aria-label={`${rating} out of 5`}>{stars(rating)}</span> · watched
+			<time datetime={watchedOn.toISOString()}>{formatDate(watchedOn)}</time>
+		</p>
+		<Content />
+	</article>
+</Base>

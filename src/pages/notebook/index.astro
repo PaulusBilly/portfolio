@@ -1,0 +1,37 @@
+---
+import Base from '../../layouts/Base.astro';
+import { getArticles, getFilms, formatDate, stars } from '../../lib/content';
+
+const articles = await getArticles();
+const films = await getFilms();
+---
+
+<Base title="Notebook">
+	<div class="prose">
+		<h1>Notebook</h1>
+
+		<section>
+			<h2>Writing</h2>
+			<ul>
+				{articles.map((a) => (
+					<li>
+						<a href={`/articles/${a.id}/`}>{a.data.title}</a>
+						<span class="meta"> · {formatDate(a.data.date)}</span>
+					</li>
+				))}
+			</ul>
+		</section>
+
+		<section>
+			<h2>Films</h2>
+			<ul>
+				{films.map((f) => (
+					<li>
+						<a href={`/films/${f.id}/`}>{f.data.title}</a>
+						<span class="meta"> ({f.data.year}) · {stars(f.data.rating)} · watched {formatDate(f.data.watchedOn)}</span>
+					</li>
+				))}
+			</ul>
+		</section>
+	</div>
+</Base>
