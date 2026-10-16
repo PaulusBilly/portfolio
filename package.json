@@ -10,7 +10,7 @@
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro",
-    "test": "node --test 'src/**/*.test.ts'"
+    "test": "node --test 'src/**/*.test.ts' && python3 -I scripts/mdl2glb.py --self-test"
   },
   "dependencies": {
     "@astrojs/mdx": "^8.1.0",
